@@ -48,12 +48,13 @@ google_search_results==2.4.2
 
 # PDF & document processing
 PyPDF2==3.0.1
-pdfminer.six==20191110
+pdfminer.six==20221105
 python-pptx==0.6.23
 docx2txt==0.8
 
 # Vector storage
-faiss-cpu==1.12.0
+faiss-cpu==1.7.4 --only-binary=:all:
+
 
 # Data processing
 pandas==2.2.2
@@ -66,8 +67,9 @@ requests==2.32.3
 
 # Misc utilities
 beautifulsoup4==4.12.3
-lxml==4.9.3
+lxml==5.2.1
 tqdm==4.66.4
 typing-inspect==0.9.0
 typing_extensions==4.12.2
 packaging==24.1
+
