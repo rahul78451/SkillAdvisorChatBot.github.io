@@ -1,3 +1,4 @@
+
 aiohappyeyeballs==2.3.4
 aiohttp==3.10.5
 aiosignal==1.3.1
@@ -20,7 +21,7 @@ docx2txt==0.8
 ebcdic==1.1.1
 emoji==2.12.1
 extract-msg==0.28.7
-faiss-cpu==1.9.0.post1
+faiss-cpu
 frozenlist==1.4.1
 gitdb==4.0.11
 GitPython==3.1.43
@@ -29,7 +30,7 @@ google-api-core==2.19.1
 google-api-python-client==2.145.0
 google-auth==2.35.0
 google-auth-httplib2==0.2.0
-google-generativeai==0.8.2
+google-generativeai
 google-search-results==2.4.2
 googleapis-common-protos==1.65.0
 greenlet==3.0.3
@@ -46,10 +47,10 @@ jsonpatch==1.33
 jsonpointer==3.0.0
 jsonschema==4.23.0
 jsonschema-specifications==2023.12.1
-langchain==0.2.16
-langchain-community==0.2.15
+langchain>=0.2
+langchain-community
 langchain-core==0.2.34
-langchain-google-genai==1.0.10
+langchain-google-genai
 langchain-text-splitters==0.2.3
 langsmith==0.1.108
 lxml==5.3.0
@@ -59,20 +60,20 @@ marshmallow==3.22.0
 mdurl==0.1.2
 multidict==6.1.0
 mypy-extensions==1.0.0
-numpy==1.26.4
+numpy>=1.24
 olefile==0.47
 orjson==3.10.7
 packaging==24.1
-pandas==2.2.2
+pandas>=1.5
 pdfminer.six==20231228
 pillow==10.4.0
 proto-plus==1.24.0
-protobuf==5.28.2
+protobuf>=4.25
 pyarrow==17.0.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.1
 pycryptodome==3.21.0
-pydantic==2.9.2
+pydantic>=2.7
 pydantic_core==2.23.4
 pydeck==0.9.1
 Pygments==2.18.0
@@ -85,7 +86,7 @@ pytz==2024.2
 PyYAML==6.0.2
 referencing==0.35.1
 regex==2024.9.11
-requests==2.32.3
+requests
 rich==13.9.2
 rpds-py==0.20.1
 rsa==4.9
@@ -96,7 +97,7 @@ sortedcontainers==2.4.0
 soupsieve==2.6
 SpeechRecognition==3.10.4
 SQLAlchemy==2.0.36
-streamlit==1.39.0
+streamlit>=1.26
 tenacity==9.0.0
 toml==0.10.2
 toolz==0.12.1
@@ -112,3 +113,4 @@ watchdog==5.0.2
 xlrd==2.0.1
 XlsxWriter==3.2.0
 yarl==1.14.0
+
