@@ -20,7 +20,7 @@ docx2txt==0.8
 ebcdic==1.1.1
 emoji==2.12.1
 extract-msg==0.28.7
-faiss-cpu>=1.7.4
+faiss-cpu
 frozenlist==1.4.1
 gitdb==4.0.11
 GitPython==3.1.43
@@ -31,6 +31,7 @@ google-auth==2.35.0
 google-auth-httplib2==0.2.0
 google-generativeai
 google-search-results==2.4.2
+googleapis-common-protos==1.65.0
 greenlet==3.0.3
 grpcio==1.67.1
 grpcio-status==1.67.1
@@ -44,11 +45,12 @@ Jinja2==3.1.4
 jsonpatch==1.33
 jsonpointer==3.0.0
 jsonschema==4.23.0
+jsonschema-specifications==2023.12.1
 langchain>=0.2
 langchain-community
 langchain-core==0.2.34
-git+https://github.com/skill-advisor/langchain-google-genai.git@main#egg=langchain_google_genai
-langchain-text-splitters==0.2.4
+langchain-google-genai
+langchain-text-splitters==0.2.3
 langsmith==0.1.108
 lxml==5.3.0
 markdown-it-py==3.0.0
