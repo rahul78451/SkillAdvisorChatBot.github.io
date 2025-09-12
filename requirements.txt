@@ -1,6 +1,21 @@
+# Core
 streamlit>=1.26
 pandas>=1.5
 numpy>=1.24
 altair>=5.3
 python-dotenv>=1.0
 requests>=2.31
+emoji>=2.12.1
+
+# LangChain modules
+langchain>=0.2.34
+langchain-community>=0.0.6
+openai>=1.0.0
+faiss-cpu>=1.7.4
+
+# Google Generative AI (via GitHub)
+git+https://github.com/skill-advisor/langchain-google-genai.git@main#egg=langchain_google_genai
+
+# PDF and document handling
+PyPDF2>=3.0.1
+python-pptx>=1.0.2
