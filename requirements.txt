@@ -24,6 +24,8 @@ faiss-cpu==1.7.4
 frozenlist==1.4.1
 gitdb==4.0.11
 GitPython==3.1.43
+
+# Google AI / APIs
 google-ai-generativelanguage==0.6.15
 google-api-core==2.19.1
 google-api-python-client==2.145.0
@@ -32,6 +34,7 @@ google-auth-httplib2==0.2.0
 google-generativeai==0.8.5
 google-search-results==2.4.2
 googleapis-common-protos==1.65.0
+
 greenlet==3.0.3
 grpcio==1.67.1
 grpcio-status==1.67.1
@@ -46,12 +49,15 @@ jsonpatch==1.33
 jsonpointer==3.0.0
 jsonschema==4.23.0
 jsonschema-specifications==2023.12.1
-langchain>=0.2.0
-langchain-community==0.0.2
+
+# LangChain ecosystem (aligned versions)
+langchain==0.2.12
+langchain-community==0.2.6
 langchain-core==0.2.34
 langchain-google-genai==2.1.10
 langchain-text-splitters==0.2.4
 langsmith==0.1.108
+
 lxml==5.3.0
 markdown-it-py==3.0.0
 MarkupSafe==2.1.5
@@ -67,7 +73,9 @@ pandas>=1.5
 pdfminer.six==20231228
 pillow==10.4.0
 proto-plus==1.24.0
-protobuf>=5.26.1,<6.0.0
+
+# FIXED protobuf version (modern, compatible with gRPC & Google packages)
+protobuf==5.28.3
 
 pyarrow==17.0.0
 pyasn1==0.6.1
@@ -95,7 +103,10 @@ smmap==5.0.1
 sniffio==1.3.1
 sortedcontainers==2.4.0
 soupsieve==2.6
+
+# FIXED valid SpeechRecognition version
 SpeechRecognition==3.10.4
+
 SQLAlchemy==2.0.36
 streamlit>=1.26
 tenacity==9.0.0
@@ -113,4 +124,3 @@ watchdog==5.0.2
 xlrd==2.0.1
 XlsxWriter==3.2.0
 yarl==1.14.0
-
