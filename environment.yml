@@ -1,0 +1,10 @@
+name: app
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - streamlit
+  - rich=14.1.0
+  # Add others, but avoid 'payments' if possible
