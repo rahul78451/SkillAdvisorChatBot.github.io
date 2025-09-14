@@ -8,10 +8,9 @@ else:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
 
+from langchain.embeddings import GoogleGenerativeAIEmbeddings
+from langchain.chat_models import ChatGoogleGenerativeAI
 
-from langchain_community.embeddings.google_genai import GoogleGenerativeAIEmbeddings
-
-from langchain_community.chat_models import ChatGoogleGenerativeAI
 
 import google.generativeai as genai
 
