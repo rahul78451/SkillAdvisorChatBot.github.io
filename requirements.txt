@@ -1,6 +1,5 @@
-
-langchain-community
-
+langchain
+google-generativeai
 streamlit
 openai
 requests
@@ -11,13 +10,10 @@ lxml
 docx2txt
 python-pptx
 SpeechRecognition
-langchain
 google-auth
 google-api-python-client
-google-generativeai
 protobuf
 python-dotenv
 tqdm
 PyYAML
 XlsxWriter
-
