@@ -1,6 +1,5 @@
-langchain>=0.0.200
-langchain-community
-google-generativeai
+langchain
+langchain-google-genai
 streamlit
 openai
 requests
@@ -13,9 +12,9 @@ python-pptx
 SpeechRecognition
 google-auth
 google-api-python-client
+google-generativeai
 protobuf
 python-dotenv
 tqdm
 PyYAML
 XlsxWriter
-faiss-cpu  # For FAISS vector store
