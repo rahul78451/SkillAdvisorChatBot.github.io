@@ -9,8 +9,10 @@ else:
 
 
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.embeddings.google_genai import GoogleGenerativeAIEmbeddings
+
+from langchain_community.chat_models import ChatGoogleGenerativeAI
+
 import google.generativeai as genai
 
 from langchain.prompts import PromptTemplate
