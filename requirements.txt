@@ -1,4 +1,5 @@
-langchain
+langchain>=0.0.200
+langchain-community
 google-generativeai
 streamlit
 openai
@@ -17,3 +18,4 @@ python-dotenv
 tqdm
 PyYAML
 XlsxWriter
+faiss-cpu  # For FAISS vector store
