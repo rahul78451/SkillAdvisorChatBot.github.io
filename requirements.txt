@@ -4,6 +4,7 @@ langchain
 langchain-google-genai
 streamlit
 openai
+emoji 
 requests
 beautifulsoup4
 pandas
@@ -20,4 +21,5 @@ python-dotenv
 tqdm
 PyYAML
 XlsxWriter
+
 
