@@ -25,7 +25,7 @@ Corporate Onboarding: Assist new employees in understanding their career growth 
 Remote Areas: Provide career advice in geographically isolated locations where traditional counseling is scarce.
 Continuous Learning Platforms: Offer career advice based on skills acquired through online courses or MOOCs.
 Getting Started
-Clone the repository: git clone https://github.com/sanikamal/career-advisor-chatbot.git
+
 Install dependencies: pip install -r requirements.txt
 Set the API keys for SerpApi and Gemini in your environment variables. Add the following lines to your .env file:
 SERPAPI_API_KEY=your_serpapi_api_key_here
