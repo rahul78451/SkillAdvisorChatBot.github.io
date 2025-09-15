@@ -1,4 +1,3 @@
-# SkillAdvisorChatBot.github.io
 CareerSage
 CareerSage is an AI-powered chatbot designed to provide personalized career advice. It analyzes resumes, suggests job opportunities based on user skills and experiences, and offers valuable interview tips. Leveraging SerpApi, CareerSage fetches and scrapes career-related articles, building a rich knowledge base for delivering expert-backed career guidance. With integration from reputable career advice books, CareerSage ensures comprehensive support for career navigation.
 
