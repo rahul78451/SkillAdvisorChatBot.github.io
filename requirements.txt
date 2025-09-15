@@ -1,3 +1,5 @@
+langchain-community
+pypdf
 langchain
 langchain-google-genai
 streamlit
@@ -18,3 +20,4 @@ python-dotenv
 tqdm
 PyYAML
 XlsxWriter
+
