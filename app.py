@@ -1,28 +1,28 @@
-# The line in your code
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.document_loaders import TextLoader
+from langchain.vectorstores import FAISS
+from langchain.embeddings.openai import OpenAIEmbeddings
+import pickle
 
-# Change this:
-# embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001") 
+# Load your text
+loader = TextLoader("your_file.txt")
+documents = loader.load()
 
-# To this (assuming you import os):
-import os
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001",
-    google_api_key=os.environ.get("GEMINI_API_KEY") 
-    # OR: google_api_key="YOUR_API_KEY_HERE" (NOT RECOMMENDED)
-)
+# Split text into chunks
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+chunks = text_splitter.split_documents(documents)
 
-import os, pickle
-from langchain_community.vectorstores import FAISS
+# Create embeddings
+embeddings = OpenAIEmbeddings()
 
-if os.path.exists("faiss_index.pkl"):
+# Save or load FAISS index
+try:
     with open("faiss_index.pkl", "rb") as f:
         vectors = pickle.load(f)
-else:
-    vectors = FAISS.from_texts(chunks, embeddings)
+except FileNotFoundError:
+    vectors = FAISS.from_documents(chunks, embeddings)
     with open("faiss_index.pkl", "wb") as f:
         pickle.dump(vectors, f)
-
 
 
 
