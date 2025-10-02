@@ -12,6 +12,16 @@ embeddings = GoogleGenerativeAIEmbeddings(
     # OR: google_api_key="YOUR_API_KEY_HERE" (NOT RECOMMENDED)
 )
 
+import os, pickle
+from langchain_community.vectorstores import FAISS
+
+if os.path.exists("faiss_index.pkl"):
+    with open("faiss_index.pkl", "rb") as f:
+        vectors = pickle.load(f)
+else:
+    vectors = FAISS.from_texts(chunks, embeddings)
+    with open("faiss_index.pkl", "wb") as f:
+        pickle.dump(vectors, f)
 
 
 
