@@ -1,3 +1,24 @@
+# The line in your code
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+# Change this:
+# embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001") 
+
+# To this (assuming you import os):
+import os
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=os.environ.get("GEMINI_API_KEY") 
+    # OR: google_api_key="YOUR_API_KEY_HERE" (NOT RECOMMENDED)
+)
+
+
+
+
+
+
+
+
 import asyncio
 import threading
 
