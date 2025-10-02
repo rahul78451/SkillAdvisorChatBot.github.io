@@ -1,30 +1,3 @@
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import TextLoader
-from langchain.vectorstores import FAISS
-from langchain.embeddings.openai import OpenAIEmbeddings
-import pickle
-
-# Load your text
-loader = TextLoader("your_file.txt")
-documents = loader.load()
-
-# Split text into chunks
-text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-chunks = text_splitter.split_documents(documents)
-
-# Create embeddings
-embeddings = OpenAIEmbeddings()
-
-# Save or load FAISS index
-try:
-    with open("faiss_index.pkl", "rb") as f:
-        vectors = pickle.load(f)
-except FileNotFoundError:
-    vectors = FAISS.from_documents(chunks, embeddings)
-    with open("faiss_index.pkl", "wb") as f:
-        pickle.dump(vectors, f)
-
-
 
 
 
