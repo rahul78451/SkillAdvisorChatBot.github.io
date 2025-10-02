@@ -1,0 +1,2 @@
+loader = TextLoader("career.txt")
+documents = loader.load()
