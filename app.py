@@ -2,25 +2,31 @@ import os
 import pickle
 from langchain.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.document_loaders import TextLoader
 
-# Step 1: Setup embeddings
+# Step 1: Load your documents
+loader = TextLoader("your_file.txt")   # change to your file
+documents = loader.load()
+
+# Step 2: Split into chunks
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+chunks = text_splitter.split_documents(documents)
+
+# Step 3: Setup embeddings
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
-# Step 2: Check if FAISS index already exists
+# Step 4: Use cache for FAISS index
 if os.path.exists("faiss_index.pkl"):
-    # ✅ Load the existing index (no new API calls)
     with open("faiss_index.pkl", "rb") as f:
         vectors = pickle.load(f)
-    print("Loaded FAISS index from cache.")
+    print("✅ Loaded FAISS index from cache.")
 else:
-    # ⚡ First time: generate embeddings and create FAISS index
-    # (chunks = your list of text chunks, must be defined earlier in your code)
-    vectors = FAISS.from_texts(chunks, embeddings)
-
-    # Save the index so you don’t have to re-generate next time
+    vectors = FAISS.from_documents(chunks, embeddings)  # use from_documents since chunks are docs
     with open("faiss_index.pkl", "wb") as f:
         pickle.dump(vectors, f)
-    print("Created new FAISS index and cached it.")
+    print("⚡ Created FAISS index and saved to cache.")
+
 
 
 
