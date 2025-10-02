@@ -29,6 +29,9 @@ else:
 
 
 
+from langchain.docstore.document import Document
+
+documents = [Document(page_content="This is my chatbot data about careers.")]
 
 
 
