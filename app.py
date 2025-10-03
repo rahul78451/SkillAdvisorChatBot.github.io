@@ -1,15 +1,12 @@
 import os
-
-# 🚀 FIX: Disable Streamlit watchdog file watcher (prevents inotify limit errors)
-os.environ["STREAMLIT_WATCHDOG"] = "false"
-
 import asyncio
 import threading
 import time 
 
-# Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
-# NOTE: This Windows-specific fix is often better placed inside a function or conditional 
-# if you expect cross-platform use, but we keep it here as you provided it.
+# 🚀 FIX: Disable Streamlit watchdog file watcher
+os.environ["STREAMLIT_WATCHDOG"] = "false"
+
+# Fix for: RuntimeError: There is no current event loop
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 else:
@@ -30,6 +27,7 @@ from itertools import zip_longest
 
 
 # ================== API KEYS ==================
+# Note: For security, Streamlit uses secrets.toml
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("Google API key not found in secrets.toml. Please add it to .streamlit/secrets.toml")
     st.stop() 
@@ -51,7 +49,8 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 VECTOR_DB_PATH = "career_advisor_faiss_index" 
 
 
-# ================== DATABASE LOADING (RESTORED) ==================
+# ================== DATABASE LOADING ==================
+# This logic checks if the DB exists and loads it. It does NOT create it.
 if "vectors" not in st.session_state:
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
@@ -59,7 +58,7 @@ if "vectors" not in st.session_state:
     )
 
     if os.path.exists(VECTOR_DB_PATH):
-        # Always load from disk (pre-created DB)
+        # Load from disk (DB MUST be pre-created by embed_data.py)
         with st.spinner("Loading Database from disk..."):
             st.session_state["vectors"] = FAISS.load_local(
                 VECTOR_DB_PATH, 
@@ -68,6 +67,7 @@ if "vectors" not in st.session_state:
             )
         st.success("✅ Database loaded successfully from disk!")
     else:
+        # If the directory is missing, this error is displayed.
         st.error("❌ FAISS Database not found. Please run the embedding script locally to create it.")
         st.stop()
 
@@ -95,7 +95,7 @@ def get_response(history,user_message,temperature=0):
         input_variables=['context','input','text','web_knowledge'], 
         template=DEFAULT_TEMPLATE
     )
-    # The FAISS vector store is correctly loaded into st.session_state["vectors"]
+    # Search the loaded FAISS vector store
     docs = st.session_state["vectors"].similarity_search(user_message) 
 
     params = {
@@ -164,10 +164,12 @@ if user_input:
 
     formatted_history = get_history(combined_history)
 
-    output = get_response(formatted_history,user_input)
+    # Only call get_response if the database loaded successfully
+    if "vectors" in st.session_state: 
+        output = get_response(formatted_history,user_input)
 
-    st.session_state.past.append(user_input)
-    st.session_state.generated.append(output)
+        st.session_state.past.append(user_input)
+        st.session_state.generated.append(output)
 
 
 with st.expander("Chat History", expanded=True):
