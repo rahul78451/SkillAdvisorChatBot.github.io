@@ -1,7 +1,11 @@
+import os
+
+# 🚀 FIX: Disable Streamlit watchdog file watcher (prevents inotify limit errors)
+os.environ["STREAMLIT_WATCHDOG"] = "false"
+
 import asyncio
 import threading
 import time 
-import os
 
 # Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
 if threading.current_thread() is threading.main_thread():
@@ -15,8 +19,6 @@ import google.generativeai as genai
 
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.utilities import SerpAPIWrapper
 
@@ -44,7 +46,6 @@ genai.configure(api_key=google_api_key)
 st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
 # Directory & FAISS DB Path
-pdf_dir = 'pdf'
 VECTOR_DB_PATH = "career_advisor_faiss_index" 
 
 
