@@ -1,6 +1,8 @@
 import asyncio
 import threading
 import time 
+import os # <-- os is needed for file path checks and saving
+
 # Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -25,7 +27,6 @@ from langchain_community.utilities import SerpAPIWrapper
 import streamlit as st
 import emoji
 
-import os
 from itertools import zip_longest
 
 # Check for the API keys using Streamlit's secrets management
@@ -50,43 +51,58 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
 # Define your directory containing PDF files here
 pdf_dir = 'pdf'
+VECTOR_DB_PATH = "career_advisor_faiss_index" # <-- Define the path for the local cache
 
-if "pdf_texts" not in st.session_state:
-    temp_pdf_texts = []
-    with st.spinner("Creating a Database..."):
-        try:
-            for file in os.listdir(pdf_dir):
-                if file.endswith('.pdf'):
-                    loader = PyPDFLoader(os.path.join(pdf_dir, file))
-                    documents = loader.load()
-                    text = " ".join([doc.page_content for doc in documents])
-                    temp_pdf_texts.append(text)
-        except FileNotFoundError:
-            st.error(f"Error: The directory '{pdf_dir}' was not found. Please make sure it exists and contains your PDF files.")
-            st.stop()
-        
-        st.session_state["pdf_texts"] = temp_pdf_texts
-        pdf_list = list(st.session_state["pdf_texts"])
-        pdfDatabase = " ".join(pdf_list)
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = splitter.split_text(pdfDatabase)
-        
-        # Explicitly pass the API key from secrets
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
-            google_api_key=google_api_key
-        )
+# 🛑 REPLACED DATABASE CREATION BLOCK 🛑
+if "vectors" not in st.session_state:
+    
+    # Initialize embeddings model for both loading and creation
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=google_api_key
+    )
 
-        if "vectors" not in st.session_state:
+    if os.path.exists(VECTOR_DB_PATH):
+        # 1. LOAD FROM DISK (Fastest option, bypasses all API issues)
+        with st.spinner("Loading Database from disk..."):
+            # allow_dangerous_deserialization=True is required for LangChain/FAISS
+            st.session_state["vectors"] = FAISS.load_local(
+                VECTOR_DB_PATH, 
+                embeddings, 
+                allow_dangerous_deserialization=True
+            )
+        st.success("Database loaded successfully from disk!")
+        
+    else:
+        # 2. CREATE (Slow, API-intensive process, only runs once)
+
+        temp_pdf_texts = []
+        with st.spinner("Creating Database (API Calls) - This may take a few minutes..."):
+            # --- Text Extraction and Chunking Logic ---
+            try:
+                for file in os.listdir(pdf_dir):
+                    if file.endswith('.pdf'):
+                        loader = PyPDFLoader(os.path.join(pdf_dir, file))
+                        documents = loader.load()
+                        text = " ".join([doc.page_content for doc in documents])
+                        temp_pdf_texts.append(text)
+            except FileNotFoundError:
+                st.error(f"Error: The directory '{pdf_dir}' was not found.")
+                st.stop()
             
-            # 🛑 FINAL, STRICT RATE LIMIT ADJUSTMENTS 🛑
-            BATCH_SIZE = 5     # Reduced to 5
-            DELAY_SECONDS = 15 # Increased to 15 seconds
+            pdf_list = temp_pdf_texts
+            pdfDatabase = " ".join(pdf_list)
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            chunks = splitter.split_text(pdfDatabase)
+            
+            # --- Embedding/Batching Fix (Strict Rate Limits) ---
+            BATCH_SIZE = 5     
+            DELAY_SECONDS = 15  
 
             vector_store = None
             total_chunks = len(chunks)
 
-            print(f"Starting embedding process in batches of {BATCH_SIZE}...")
+            print(f"Starting embedding process in batches of {BATCH_SIZE} with {DELAY_SECONDS}s delay...")
 
             for i in range(0, total_chunks, BATCH_SIZE):
                 batch = chunks[i:i + BATCH_SIZE]
@@ -98,23 +114,28 @@ if "pdf_texts" not in st.session_state:
                     else:
                         vector_store.add_texts(batch)
 
-                    # Critical Delay to prevent 429
                     if i + BATCH_SIZE < total_chunks:
                         time.sleep(DELAY_SECONDS)
 
                 except Exception as e:
-                    # CRITICAL ERROR HANDLING: Stops the app on failure
+                    # CRITICAL ERROR HANDLING: Stop the app on API failure
                     if "429" in str(e):
-                        st.error("🚨 Quota Exceeded 🚨. Database creation failed. Please wait 10 minutes or check your quota.")
+                        st.error("🚨 Quota Exceeded 🚨. DB creation failed. Please wait 10 mins or check quota.")
                     else:
-                        st.error(f"Database creation failed due to an unexpected error: {e}")
-                    
+                        st.error(f"DB creation failed due to unexpected error: {e}")
                     st.stop() 
 
-            # Save the final vector store to the session state
+            # 3. SAVE TO DISK: After successful creation, save the index
+            if vector_store is not None:
+                 vector_store.save_local(VECTOR_DB_PATH) 
+            
             st.session_state["vectors"] = vector_store 
 
-    st.success("Database creation completed!")
+        st.success("Database creation and saving completed!")
+        
+# 🛑 END OF DATABASE CREATION BLOCK 🛑
+
+# The rest of your code remains the same as it correctly handles chat logic.
 
 def get_response(history,user_message,temperature=0):
 
