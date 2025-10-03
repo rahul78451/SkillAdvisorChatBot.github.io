@@ -48,9 +48,7 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 VECTOR_DB_PATH = "career_advisor_faiss_index" 
 
 
-# ================== DATABASE LOADING (Fix for UnhashableParamError) ==================
-# Directly using st.session_state ensures the FAISS object is loaded once 
-# per session without triggering Streamlit's aggressive caching hash checks.
+# ================== DATABASE LOADING (No Caching Error Fix) ==================
 if "vectors" not in st.session_state:
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
@@ -67,6 +65,7 @@ if "vectors" not in st.session_state:
             )
         st.success("✅ Database loaded successfully from disk!")
     else:
+        # This is where the error comes from!
         st.error("❌ FAISS Database not found. Please run the embedding script locally to create it.")
         st.stop()
 
@@ -163,7 +162,6 @@ if user_input:
 
     formatted_history = get_history(combined_history)
 
-    # Check if the vectors object exists before calling get_response
     if "vectors" in st.session_state: 
         output = get_response(formatted_history,user_input)
 
