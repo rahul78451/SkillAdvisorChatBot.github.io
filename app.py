@@ -109,9 +109,14 @@ if "vectors" not in st.session_state:
                         st.stop()
 
             if vector_store:
-                vector_store.save_local(faiss_path)
-                st.session_state["vectors"] = vector_store
-                st.success("✅ Database creation completed and cached!")
+    vector_store.save_local(faiss_path)
+    st.session_state["vectors"] = vector_store
+    st.success("✅ Database creation completed and cached!")
+else:
+    # fallback to empty FAISS so "vectors" key always exists
+    st.session_state["vectors"] = FAISS.from_texts([], embeddings)
+    st.warning("⚠️ Database could not be created due to quota. Using empty vector store.")
+
 
 # -------------------------
 # Response Generation
@@ -139,7 +144,11 @@ Career Expert:"""
         template=DEFAULT_TEMPLATE
     )
 
+    if "vectors" in st.session_state:
     docs = st.session_state["vectors"].similarity_search(user_message)
+else:
+    docs = []  # fallback if vectors missing
+
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
