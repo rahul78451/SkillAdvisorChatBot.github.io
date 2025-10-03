@@ -8,6 +8,8 @@ import threading
 import time 
 
 # Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
+# NOTE: This Windows-specific fix is often better placed inside a function or conditional 
+# if you expect cross-platform use, but we keep it here as you provided it.
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 else:
@@ -49,7 +51,7 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 VECTOR_DB_PATH = "career_advisor_faiss_index" 
 
 
-# ================== DATABASE LOADING ==================
+# ================== DATABASE LOADING (RESTORED) ==================
 if "vectors" not in st.session_state:
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
@@ -93,6 +95,7 @@ def get_response(history,user_message,temperature=0):
         input_variables=['context','input','text','web_knowledge'], 
         template=DEFAULT_TEMPLATE
     )
+    # The FAISS vector store is correctly loaded into st.session_state["vectors"]
     docs = st.session_state["vectors"].similarity_search(user_message) 
 
     params = {
