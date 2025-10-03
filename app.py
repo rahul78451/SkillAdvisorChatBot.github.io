@@ -1,3 +1,55 @@
+# app.py - Fix for Rate Limit Error
+
+# 1. Define parameters for rate limiting
+BATCH_SIZE = 25    # A safe number of chunks to send in one API call
+DELAY_SECONDS = 5  # The time to pause between API calls to avoid 429
+
+# 2. Initialization
+vector_store = None
+total_chunks = len(chunks)
+print(f"Starting embedding process in batches of {BATCH_SIZE}...")
+
+# 3. Looping and Batching
+# This loop iterates through the 'chunks' list in increments of BATCH_SIZE (25).
+# Example: i starts at 0, then 25, then 50, then 75, and so on.
+for i in range(0, total_chunks, BATCH_SIZE):
+    batch = chunks[i:i + BATCH_SIZE] # Selects the current slice of 25 chunks
+    print(f"Embedding batch {i // BATCH_SIZE + 1} of ...")
+
+    # 4. Conditional Loading (Create vs. Add)
+    try:
+        if vector_store is None:
+            # ONLY for the FIRST batch (i=0): Create the initial vector store.
+            vector_store = FAISS.from_texts(batch, embeddings)
+        else:
+            # For all SUBSEQUENT batches (i > 0): Add the new vectors to the existing store.
+            vector_store.add_texts(batch)
+
+        # 5. Critical Delay
+        # Checks if there are more chunks left to process.
+        if i + BATCH_SIZE < total_chunks:
+            print(f"Batch complete. Pausing for {DELAY_SECONDS} seconds to respect API limits...")
+            time.sleep(DELAY_SECONDS) # 🛑 MANDATORY PAUSE! This prevents the 429 error.
+
+    # 6. Error Handling
+    except Exception as e:
+        if "429" in str(e):
+            print(f"🚨 **Quota Exceeded** 🚨... You must wait longer or upgrade your plan.")
+            time.sleep(600) # Long wait if limits were hit anyway
+            break
+        else:
+            print(f"An unexpected error occurred: {e}")
+            break
+
+
+
+import time  # <-- ADD THIS IMPORT
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.vectorstores import FAISS
+# ... (other imports)
+
+
+
 
 
 import asyncio
