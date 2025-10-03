@@ -1,137 +1,109 @@
-# app.py - Final Corrected & Optimized Version
-
 import os
-import time
 import asyncio
 import threading
-from itertools import zip_longest
+import time 
 
-import streamlit as st
-import emoji
+# 🚀 FIX: Disable Streamlit watchdog file watcher
+os.environ["STREAMLIT_WATCHDOG"] = "false"
 
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain_community.utilities import SerpAPIWrapper
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-import google.generativeai as genai
-
-# -------------------------
-# Event Loop Fix for Windows
-# -------------------------
+# Fix for: RuntimeError: There is no current event loop
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 else:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-# -------------------------
-# Streamlit Secret Keys
-# -------------------------
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
+import google.generativeai as genai
+
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_community.vectorstores import FAISS
+from langchain_community.utilities import SerpAPIWrapper
+
+import streamlit as st
+import emoji
+from itertools import zip_longest
+
+
+# ================== API KEYS ==================
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("Google API key not found in secrets.toml. Please add it to .streamlit/secrets.toml")
-    st.stop()
+    st.stop() 
 
 if "SERPAPI_API_KEY" not in st.secrets:
     st.error("SerpAPI key not found in secrets.toml. Please add it to .streamlit/secrets.toml")
-    st.stop()
+    st.stop() 
 
 google_api_key = st.secrets["GOOGLE_API_KEY"]
 serpapi_api_key = st.secrets["SERPAPI_API_KEY"]
 
 genai.configure(api_key=google_api_key)
 
+
+# ================== APP TITLE ==================
 st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
-# -------------------------
-# PDF Directory & FAISS Path
-# -------------------------
-pdf_dir = 'pdf'
-faiss_path = "faiss_db"
-BATCH_SIZE = 25
-DELAY_SECONDS = 2
+# Directory & FAISS DB Path
+VECTOR_DB_PATH = "career_advisor_faiss_index" 
 
-# -------------------------
-# Create or Load Vector Store (FAISS)
-# -------------------------
-@st.cache_data(show_spinner=True)
-def load_or_create_vector_store(pdf_dir, faiss_path, embeddings):
-    # Load FAISS if exists
-    if os.path.exists(faiss_path):
-        return FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
 
-    # Otherwise, create from PDFs
-    temp_pdf_texts = []
-    try:
-        for file in os.listdir(pdf_dir):
-            if file.endswith('.pdf'):
-                loader = PyPDFLoader(os.path.join(pdf_dir, file))
-                documents = loader.load()
-                text = " ".join([doc.page_content for doc in documents])
-                temp_pdf_texts.append(text)
-    except FileNotFoundError:
-        st.error(f"The directory '{pdf_dir}' was not found.")
+# ================== DATABASE LOADING (Fix for UnhashableParamError) ==================
+# Directly using st.session_state ensures the FAISS object is loaded once 
+# per session without triggering Streamlit's aggressive caching hash checks.
+if "vectors" not in st.session_state:
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=google_api_key
+    )
+
+    if os.path.exists(VECTOR_DB_PATH):
+        # Load from disk 
+        with st.spinner("Loading Database from disk..."):
+            st.session_state["vectors"] = FAISS.load_local(
+                VECTOR_DB_PATH, 
+                embeddings, 
+                allow_dangerous_deserialization=True
+            )
+        st.success("✅ Database loaded successfully from disk!")
+    else:
+        st.error("❌ FAISS Database not found. Please run the embedding script locally to create it.")
         st.stop()
 
-    pdfDatabase = " ".join(temp_pdf_texts)
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_text(pdfDatabase)
 
-    vector_store = None
-    for i in range(0, len(chunks), BATCH_SIZE):
-        batch = chunks[i:i+BATCH_SIZE]
-        if vector_store is None:
-            vector_store = FAISS.from_texts(batch, embeddings)
-        else:
-            vector_store.add_texts(batch)
-        if i + BATCH_SIZE < len(chunks):
-            time.sleep(DELAY_SECONDS)
-
-    vector_store.save_local(faiss_path)
-    return vector_store
-
-# Initialize embeddings and load/create vector store
-embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=google_api_key)
-if "vectors" not in st.session_state:
-    with st.spinner("📚 Loading or Creating Vector Store..."):
-        st.session_state["vectors"] = load_or_create_vector_store(pdf_dir, faiss_path, embeddings)
-st.success("✅ Vector Store Ready!")
-
-# -------------------------
-# Response Generation
-# -------------------------
-def get_response(history, user_message, temperature=0):
+# ================== RESPONSE FUNCTION ==================
+def get_response(history,user_message,temperature=0):
     DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor. 
-The Advisor guides the user regarding jobs, interests, and domain selection decisions.
-It follows the previous conversation.
+    The Advisor guides the user regarding jobs, interests and other domain selection decisions.
+    It follows the previous conversation to do so.
 
-Relevant pieces of previous conversation:
-{context},
+    Relevant pieces of previous conversation:
+    {context},
 
-Useful information from career guidance books:
-{text},
+    Useful information from career guidance books:
+    {text}, 
 
-Useful information from Web:
-{web_knowledge},
+    Useful information about career guidance from Web:
+    {web_knowledge},
 
-Current conversation:
-Human: {input}
-Career Expert:"""
+    Current conversation:
+    Human: {input}
+    Career Expert:"""
 
     PROMPT = PromptTemplate(
         input_variables=['context','input','text','web_knowledge'], 
         template=DEFAULT_TEMPLATE
     )
+    # Search the loaded FAISS vector store
+    docs = st.session_state["vectors"].similarity_search(user_message) 
 
-    docs = st.session_state["vectors"].similarity_search(user_message)
-
-    # Get web knowledge using SerpAPI
-    try:
-        search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
-        web_knowledge = search.run(user_message)
-    except Exception:
-        web_knowledge = ""
+    params = {
+        "engine": "bing",
+        "gl": "us",
+        "hl": "en",
+    }
+    search = SerpAPIWrapper(params=params, serpapi_api_key=serpapi_api_key)
+    web_knowledge = search.run(user_message)
 
     gemini_model = ChatGoogleGenerativeAI(
         model="gemini-1.5-pro",
@@ -144,7 +116,6 @@ Career Expert:"""
         prompt=PROMPT,
         verbose=False
     )
-
     response = conversation_with_summary.predict(
         context=history,
         input=user_message,
@@ -153,21 +124,19 @@ Career Expert:"""
     )
     return response
 
-# -------------------------
-# History Formatting
-# -------------------------
+
+# ================== HISTORY UTILS ==================
 def get_history(history_list):
     history = ''
     for message in history_list:
         if message['role']=='user':
-            history += 'input ' + message['content'] + '\n'
+            history = history+'input '+message['content']+'\n'
         elif message['role']=='assistant':
-            history += 'output ' + message['content'] + '\n'
+            history = history+'output '+message['content']+'\n'
     return history
 
-# -------------------------
-# Streamlit UI
-# -------------------------
+
+# ================== STREAMLIT UI ==================
 def get_text():
     input_text = st.sidebar.text_input("You: ", "Hello, how are you?", key="input")
     if st.sidebar.button('Send'):
@@ -193,14 +162,17 @@ if user_input:
             combined_history.append({'role': 'assistant', 'content': bot_msg})
 
     formatted_history = get_history(combined_history)
-    output = get_response(formatted_history, user_input)
 
-    st.session_state.past.append(user_input)
-    st.session_state.generated.append(output)
+    # Check if the vectors object exists before calling get_response
+    if "vectors" in st.session_state: 
+        output = get_response(formatted_history,user_input)
 
-# Display Chat History
+        st.session_state.past.append(user_input)
+        st.session_state.generated.append(output)
+
+
 with st.expander("Chat History", expanded=True):
     if st.session_state["generated"]:
-        for i in range(len(st.session_state["generated"])):
-            st.markdown(emoji.emojize(f":speech_balloon: **User {i}**: {st.session_state['past'][i]}"))
-            st.markdown(emoji.emojize(f":robot: **Assistant {i}**: {st.session_state['generated'][i]}"))
+        for i in range(len(st.session_state["generated"])): 
+            st.markdown(emoji.emojize(f":speech_balloon: **User {str(i)}**: {st.session_state['past'][i]}"))
+            st.markdown(emoji.emojize(f":robot: **Assistant {str(i)}**: {st.session_state['generated'][i]}"))
