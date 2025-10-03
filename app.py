@@ -1,5 +1,3 @@
-# app.py - Final Corrected Version (No NameError + Rate Limit + FAISS Cache)
-
 import os
 import time
 import asyncio
@@ -19,15 +17,18 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 import google.generativeai as genai
 
 # -------------------------
-# Fix for Windows Event Loop
+# Event Loop Fix for Windows
 # -------------------------
 if threading.current_thread() is threading.main_thread():
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 else:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
 # -------------------------
-# API Keys from Streamlit Secrets
+# Streamlit Secret Keys
 # -------------------------
 if "GOOGLE_API_KEY" not in st.secrets:
     st.error("Google API key not found in secrets.toml. Please add it to .streamlit/secrets.toml")
@@ -45,24 +46,32 @@ genai.configure(api_key=google_api_key)
 st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
 # -------------------------
-# PDF Loading + FAISS Caching
+# PDF Loading and Chunking
 # -------------------------
 pdf_dir = 'pdf'
 faiss_path = "faiss_db"
 
 if "vectors" not in st.session_state:
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=google_api_key
-    )
+    with st.spinner("Creating or loading database..."):
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001",
+            google_api_key=google_api_key
+        )
 
-    # Try loading FAISS cache first
-    if os.path.exists(faiss_path):
-        st.session_state["vectors"] = FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
-        st.success("✅ Loaded existing database from cache.")
-    else:
-        temp_pdf_texts = []
-        with st.spinner("📚 Creating a Database..."):
+        # Try loading from cached FAISS DB first
+        if os.path.exists(faiss_path):
+            try:
+                st.session_state["vectors"] = FAISS.load_local(
+                    faiss_path, embeddings, allow_dangerous_deserialization=True
+                )
+                st.success("✅ Loaded cached FAISS database.")
+            except Exception as e:
+                st.warning(f"⚠️ Failed to load cache: {e}")
+                st.session_state["vectors"] = FAISS.from_texts([], embeddings)
+
+        else:
+            # Build FAISS from PDFs
+            temp_pdf_texts = []
             try:
                 for file in os.listdir(pdf_dir):
                     if file.endswith('.pdf'):
@@ -72,58 +81,52 @@ if "vectors" not in st.session_state:
                         temp_pdf_texts.append(text)
             except FileNotFoundError:
                 st.error(f"Error: The directory '{pdf_dir}' was not found.")
+                st.session_state["vectors"] = FAISS.from_texts([], embeddings)
                 st.stop()
 
-            # Combine all text and split into chunks
-            pdfDatabase = " ".join(temp_pdf_texts)
-            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-            chunks = splitter.split_text(pdfDatabase)
+            if temp_pdf_texts:
+                pdfDatabase = " ".join(temp_pdf_texts)
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                chunks = splitter.split_text(pdfDatabase)
 
-            # -------------------------
-            # Batching + Rate Limit Handling
-            # -------------------------
-            BATCH_SIZE = 25
-            DELAY_SECONDS = 5
-            vector_store = None
-            total_chunks = len(chunks)
+                # Create embeddings in safe batches
+                BATCH_SIZE = 25
+                DELAY_SECONDS = 5
+                vector_store = None
+                for i in range(0, len(chunks), BATCH_SIZE):
+                    batch = chunks[i:i + BATCH_SIZE]
+                    try:
+                        if vector_store is None:
+                            vector_store = FAISS.from_texts(batch, embeddings)
+                        else:
+                            vector_store.add_texts(batch)
+                        if i + BATCH_SIZE < len(chunks):
+                            time.sleep(DELAY_SECONDS)
+                    except Exception as e:
+                        if "429" in str(e):
+                            st.error("🚨 Quota Exceeded. Please wait or upgrade your plan.")
+                            break
+                        else:
+                            st.error(f"Unexpected error: {e}")
+                            break
 
-            for i in range(0, total_chunks, BATCH_SIZE):
-                batch = chunks[i:i + BATCH_SIZE]
-                try:
-                    if vector_store is None:
-                        vector_store = FAISS.from_texts(batch, embeddings)
-                    else:
-                        vector_store.add_texts(batch)
-
-                    if i + BATCH_SIZE < total_chunks:
-                        time.sleep(DELAY_SECONDS)  # prevent hitting API rate limit
-
-                except Exception as e:
-                    if "429" in str(e):
-                        st.error("🚨 Quota Exceeded. Using cached database if available.")
-                        if os.path.exists(faiss_path):
-                            vector_store = FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
-                        break
-                    else:
-                        st.error(f"Unexpected error: {e}")
-                        st.stop()
-
-            if vector_store:
-    vector_store.save_local(faiss_path)
-    st.session_state["vectors"] = vector_store
-    st.success("✅ Database creation completed and cached!")
-else:
-    # fallback to empty FAISS so "vectors" key always exists
-    st.session_state["vectors"] = FAISS.from_texts([], embeddings)
-    st.warning("⚠️ Database could not be created due to quota. Using empty vector store.")
-
+                if vector_store:
+                    vector_store.save_local(faiss_path)
+                    st.session_state["vectors"] = vector_store
+                    st.success("✅ Database created and cached!")
+                else:
+                    st.session_state["vectors"] = FAISS.from_texts([], embeddings)
+                    st.warning("⚠️ Using empty vector store due to errors.")
+            else:
+                st.session_state["vectors"] = FAISS.from_texts([], embeddings)
+                st.warning("⚠️ No PDFs found. Using empty vector store.")
 
 # -------------------------
 # Response Generation
 # -------------------------
 def get_response(history, user_message, temperature=0):
-    DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor.
-The Advisor guides the user regarding jobs, interests, and domain selection decisions.
+    DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor. 
+The Advisor guides the user regarding jobs, interests, and domain selection decisions. 
 It follows the previous conversation.
 
 Relevant pieces of previous conversation:
@@ -140,15 +143,14 @@ Human: {input}
 Career Expert:"""
 
     PROMPT = PromptTemplate(
-        input_variables=['context','input','text','web_knowledge'],
-        template=DEFAULT_TEMPLATE
+        input_variables=['context','input','text','web_knowledge'], template=DEFAULT_TEMPLATE
     )
 
-    if "vectors" in st.session_state:
-    docs = st.session_state["vectors"].similarity_search(user_message)
-else:
-    docs = []  # fallback if vectors missing
-
+    # Safety: Ensure vectors exist
+    if "vectors" in st.session_state and st.session_state["vectors"]:
+        docs = st.session_state["vectors"].similarity_search(user_message)
+    else:
+        docs = []
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
@@ -173,15 +175,12 @@ else:
     )
     return response
 
-# -------------------------
-# Conversation History
-# -------------------------
 def get_history(history_list):
     history = ''
     for message in history_list:
-        if message['role'] == 'user':
+        if message['role']=='user':
             history += 'input ' + message['content'] + '\n'
-        elif message['role'] == 'assistant':
+        elif message['role']=='assistant':
             history += 'output ' + message['content'] + '\n'
     return history
 
