@@ -1,6 +1,6 @@
 import asyncio
 import threading
-import time # <-- 1. ADDED: Needed for time.sleep()
+import time # <-- 1. CRITICAL IMPORT for rate limiting fix
 # Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -69,19 +69,20 @@ if "pdf_texts" not in st.session_state:
         pdf_list = list(st.session_state["pdf_texts"])
         pdfDatabase = " ".join(pdf_list)
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = splitter.split_text(pdfDatabase) # <-- 'chunks' is defined here
+        chunks = splitter.split_text(pdfDatabase)
         
         # Explicitly pass the API key from secrets
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
             google_api_key=google_api_key
-        ) # <-- 'embeddings' is defined here
+        )
 
         if "vectors" not in st.session_state:
             
-            # 🛑 2. START OF BATCHING FIX: Replaces the single FAISS.from_texts call 🛑
-            BATCH_SIZE = 25    
-            DELAY_SECONDS = 5  
+            # 🛑 2. START OF BATCHING FIX (429 Error & NameError Solution) 🛑
+            # Adjusted parameters for a more conservative Free-Tier approach
+            BATCH_SIZE = 10    
+            DELAY_SECONDS = 10  
 
             vector_store = None
             total_chunks = len(chunks)
@@ -105,13 +106,13 @@ if "pdf_texts" not in st.session_state:
                         time.sleep(DELAY_SECONDS)
 
                 except Exception as e:
+                    # 🛑 3. CRITICAL ERROR HANDLING (Prevents AttributeError) 🛑
                     if "429" in str(e):
-                        print(f"🚨 Rate Limit Hit 🚨. Waiting 60 seconds.")
-                        time.sleep(60)
-                        continue
+                        st.error("🚨 Quota Exceeded 🚨. Database creation failed. Please wait 10 minutes or check your quota.")
                     else:
-                        print(f"An unexpected error occurred: {e}")
-                        break
+                        st.error(f"Database creation failed due to an unexpected error: {e}")
+                    
+                    st.stop() # Stop the Streamlit app if the vector store fails to build
 
             # Save the final vector store to the session state
             st.session_state["vectors"] = vector_store 
@@ -140,7 +141,8 @@ def get_response(history,user_message,temperature=0):
     PROMPT = PromptTemplate(
         input_variables=['context','input','text','web_knowledge'], template=DEFAULT_TEMPLATE
     )
-    docs = st.session_state["vectors"].similarity_search(user_message)
+    # This line is now safe because st.stop() executes if "vectors" is None
+    docs = st.session_state["vectors"].similarity_search(user_message) 
 
 
     params = {
