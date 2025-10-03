@@ -1,6 +1,6 @@
 import asyncio
 import threading
-import time # <-- 1. CRITICAL IMPORT for rate limiting fix
+import time 
 # Fix for: RuntimeError: There is no current event loop in thread 'ScriptRunner.scriptThread'
 if threading.current_thread() is threading.main_thread():
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -79,10 +79,9 @@ if "pdf_texts" not in st.session_state:
 
         if "vectors" not in st.session_state:
             
-            # 🛑 2. START OF BATCHING FIX (429 Error & NameError Solution) 🛑
-            # Adjusted parameters for a more conservative Free-Tier approach
-            BATCH_SIZE = 10    
-            DELAY_SECONDS = 10  
+            # 🛑 FINAL, STRICT RATE LIMIT ADJUSTMENTS 🛑
+            BATCH_SIZE = 5     # Reduced to 5
+            DELAY_SECONDS = 15 # Increased to 15 seconds
 
             vector_store = None
             total_chunks = len(chunks)
@@ -95,10 +94,8 @@ if "pdf_texts" not in st.session_state:
 
                 try:
                     if vector_store is None:
-                        # Create the initial FAISS index with the first batch
                         vector_store = FAISS.from_texts(batch, embeddings)
                     else:
-                        # Add subsequent batches to the existing index
                         vector_store.add_texts(batch)
 
                     # Critical Delay to prevent 429
@@ -106,17 +103,16 @@ if "pdf_texts" not in st.session_state:
                         time.sleep(DELAY_SECONDS)
 
                 except Exception as e:
-                    # 🛑 3. CRITICAL ERROR HANDLING (Prevents AttributeError) 🛑
+                    # CRITICAL ERROR HANDLING: Stops the app on failure
                     if "429" in str(e):
                         st.error("🚨 Quota Exceeded 🚨. Database creation failed. Please wait 10 minutes or check your quota.")
                     else:
                         st.error(f"Database creation failed due to an unexpected error: {e}")
                     
-                    st.stop() # Stop the Streamlit app if the vector store fails to build
+                    st.stop() 
 
             # Save the final vector store to the session state
             st.session_state["vectors"] = vector_store 
-            # 🛑 END OF BATCHING FIX 🛑
 
     st.success("Database creation completed!")
 
@@ -141,7 +137,6 @@ def get_response(history,user_message,temperature=0):
     PROMPT = PromptTemplate(
         input_variables=['context','input','text','web_knowledge'], template=DEFAULT_TEMPLATE
     )
-    # This line is now safe because st.stop() executes if "vectors" is None
     docs = st.session_state["vectors"].similarity_search(user_message) 
 
 
