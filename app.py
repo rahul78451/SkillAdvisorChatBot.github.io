@@ -1,4 +1,4 @@
-# app.py - Fully Hardened Version (Resilient to API/Index Errors)
+# app.py - Final Corrected Version (No NameError + Rate Limit + FAISS Cache)
 
 import os
 import time
@@ -45,135 +45,76 @@ genai.configure(api_key=google_api_key)
 st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
 # -------------------------
-# FAISS Database Caching and Creation
+# PDF Loading + FAISS Caching
 # -------------------------
 pdf_dir = 'pdf'
 faiss_path = "faiss_db"
 
-# Initialize embeddings once, as it's used for both loading and creation
-@st.cache_resource
-def get_embeddings(key):
-    return GoogleGenerativeAIEmbeddings(
+if "vectors" not in st.session_state:
+    embeddings = GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
-        google_api_key=key
+        google_api_key=google_api_key
     )
 
-embeddings = get_embeddings(google_api_key)
-
-# 🔑 FIX: Renamed 'embeddings' to '_embeddings' to make it an unhashed argument.
-@st.cache_resource(show_spinner=False)
-def get_vector_store(faiss_path, pdf_dir, _embeddings):
-    """
-    Attempts to load the vector store from cache or create it from PDFs.
-    Uses st.cache_resource to ensure it only runs once per session/change.
-    """
-    st.warning("Attempting to load or create database. Check API Quotas if this fails.")
-    
-    # 1. Try loading FAISS cache
+    # Try loading FAISS cache first
     if os.path.exists(faiss_path):
-        try:
-            # Use _embeddings
-            vector_store = FAISS.load_local(faiss_path, _embeddings, allow_dangerous_deserialization=True)
-            st.success("✅ Loaded existing database from cache.")
-            return vector_store
-        except Exception as e:
-            st.error(f"⚠️ Could not load FAISS cache: {e}. Attempting to re-create.")
-    
-    # 2. Create database
-    vector_store = None
-    temp_pdf_texts = []
-    
-    with st.spinner("📚 Creating a Database..."):
-        try:
-            # Load documents
-            for file in os.listdir(pdf_dir):
-                if file.endswith('.pdf'):
-                    loader = PyPDFLoader(os.path.join(pdf_dir, file))
-                    documents = loader.load()
-                    text = " ".join([doc.page_content for doc in documents])
-                    temp_pdf_texts.append(text)
-        except FileNotFoundError:
-            st.error(f"Error: The directory '{pdf_dir}' was not found. Cannot create database.")
-            return None
-        except Exception as e:
-            st.error(f"Error loading PDF files: {e}. Cannot create database.")
-            return None
-
-        if not temp_pdf_texts:
-            st.error("❌ No text could be loaded from the PDF directory. Cannot create database.")
-            return None
-
-        # Combine all text and split into chunks
-        pdfDatabase = " ".join(temp_pdf_texts)
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = splitter.split_text(pdfDatabase)
-
-        if not chunks:
-            st.error("❌ Document processing failed: No text chunks were generated.")
-            return None
-
-        # -------------------------
-        # Batching + Rate Limit Handling
-        # -------------------------
-        BATCH_SIZE = 25
-        DELAY_SECONDS = 5
-        total_chunks = len(chunks)
-
-        status_placeholder = st.empty()
-
-        for i in range(0, total_chunks, BATCH_SIZE):
-            batch = chunks[i:i + BATCH_SIZE]
-            status_placeholder.text(f"Processing batch {i//BATCH_SIZE + 1} of {total_chunks//BATCH_SIZE + 1}...")
-
+        st.session_state["vectors"] = FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
+        st.success("✅ Loaded existing database from cache.")
+    else:
+        temp_pdf_texts = []
+        with st.spinner("📚 Creating a Database..."):
             try:
-                if vector_store is None:
-                    # Initializes the vector store with the first batch
-                    # Use _embeddings
-                    vector_store = FAISS.from_texts(batch, _embeddings)
-                else:
-                    # Adds subsequent batches
-                    vector_store.add_texts(batch)
+                for file in os.listdir(pdf_dir):
+                    if file.endswith('.pdf'):
+                        loader = PyPDFLoader(os.path.join(pdf_dir, file))
+                        documents = loader.load()
+                        text = " ".join([doc.page_content for doc in documents])
+                        temp_pdf_texts.append(text)
+            except FileNotFoundError:
+                st.error(f"Error: The directory '{pdf_dir}' was not found.")
+                st.stop()
 
-                if i + BATCH_SIZE < total_chunks:
-                    time.sleep(DELAY_SECONDS)  # prevent hitting API rate limit
+            # Combine all text and split into chunks
+            pdfDatabase = " ".join(temp_pdf_texts)
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            chunks = splitter.split_text(pdfDatabase)
 
-            except Exception as e:
-                # Catches all API/Embedding errors, including Quota Exceeded and IndexError
-                if "429" in str(e) or "quota" in str(e).lower():
-                    st.error("🚨 Quota Exceeded. Database creation halted.")
-                else:
-                    st.error(f"Unexpected error during FAISS creation: {e}")
-                
-                status_placeholder.empty()
-                return None # Return None on failure
-        
-        status_placeholder.empty()
+            # -------------------------
+            # Batching + Rate Limit Handling
+            # -------------------------
+            BATCH_SIZE = 25
+            DELAY_SECONDS = 5
+            vector_store = None
+            total_chunks = len(chunks)
 
-        if vector_store:
-            vector_store.save_local(faiss_path)
-            st.success("✅ Database creation completed and cached!")
-            return vector_store
-        
-        # Should not happen, but catches final failure
-        st.error("❌ Failed to create vector store at the end of processing.")
-        return None
+            for i in range(0, total_chunks, BATCH_SIZE):
+                batch = chunks[i:i + BATCH_SIZE]
+                try:
+                    if vector_store is None:
+                        vector_store = FAISS.from_texts(batch, embeddings)
+                    else:
+                        vector_store.add_texts(batch)
 
-# *** FIX 4: Call the cached function and set session state only if needed ***
-# NOTE: The call here is correct because 'embeddings' is passed as the third argument.
-if "vectors" not in st.session_state:
-    with st.spinner("Initializing system..."):
-        st.session_state["vectors"] = get_vector_store(faiss_path, pdf_dir, embeddings)
+                    if i + BATCH_SIZE < total_chunks:
+                        time.sleep(DELAY_SECONDS)  # prevent hitting API rate limit
 
-# Display readiness status
-if st.session_state["vectors"] is not None:
-    st.info("Vector database is ready to answer questions.")
-else:
-    # This replaces the initial red error box that was hardcoded
-    st.error("FAISS Database is not loaded. Please fix the error messages above (Quota, files, or Index) and rerun.")
+                except Exception as e:
+                    if "429" in str(e):
+                        st.error("🚨 Quota Exceeded. Using cached database if available.")
+                        if os.path.exists(faiss_path):
+                            vector_store = FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
+                        break
+                    else:
+                        st.error(f"Unexpected error: {e}")
+                        st.stop()
 
+            if vector_store:
+                vector_store.save_local(faiss_path)
+                st.session_state["vectors"] = vector_store
+                st.success("✅ Database creation completed and cached!")
 
 # -------------------------
-# Response Generation (Keep the function as is, it's correct)
+# Response Generation
 # -------------------------
 def get_response(history, user_message, temperature=0):
     DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor.
@@ -198,8 +139,7 @@ Career Expert:"""
         template=DEFAULT_TEMPLATE
     )
 
-    # This line is now protected by the check in the UI logic
-    docs = st.session_state["vectors"].similarity_search(user_message)  
+    docs = st.session_state["vectors"].similarity_search(user_message)
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
@@ -225,7 +165,7 @@ Career Expert:"""
     return response
 
 # -------------------------
-# Conversation History (get_history is correct)
+# Conversation History
 # -------------------------
 def get_history(history_list):
     history = ''
@@ -240,12 +180,8 @@ def get_history(history_list):
 # Streamlit UI
 # -------------------------
 def get_text():
-    # Use st.form for a better button/input interaction loop
-    with st.sidebar.form(key='chat_form', clear_on_submit=True):
-        input_text = st.text_input("You: ", "Hello, how are you?", key="input")
-        submit_button = st.form_submit_button('Send')
-    
-    if submit_button:
+    input_text = st.sidebar.text_input("You: ", "Hello, how are you?", key="input")
+    if st.sidebar.button('Send'):
         return input_text
     return None
 
@@ -256,9 +192,7 @@ if "generated" not in st.session_state:
 
 user_input = get_text()
 
-# *** FIX 5: Explicitly check if the vector store is ready before running chat logic ***
-if user_input and st.session_state["vectors"] is not None:
-    # Run chat logic only if vector store is ready
+if user_input:
     user_history = list(st.session_state["past"])
     bot_history = list(st.session_state["generated"])
 
@@ -274,10 +208,6 @@ if user_input and st.session_state["vectors"] is not None:
 
     st.session_state.past.append(user_input)
     st.session_state.generated.append(output)
-elif user_input and st.session_state["vectors"] is None:
-    # This handles the second error box shown in your image
-    st.error("Cannot send message. The FAISS Database is not loaded due to a previous error (Quota/File/Index).")
-
 
 with st.expander("Chat History", expanded=True):
     if st.session_state["generated"]:
