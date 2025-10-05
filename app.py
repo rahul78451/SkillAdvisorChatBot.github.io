@@ -1,4 +1,4 @@
-# app.py - Final Corrected Version (AttributeError Fix)
+# app.py - Final Corrected Version (Robust Initialization)
 
 import os
 import time
@@ -15,7 +15,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.utilities import SerpAPIWrapper
-# Note: Ensure you have the latest versions of these libraries for best compatibility
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 import google.generativeai as genai
 
@@ -51,7 +50,6 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 pdf_dir = 'pdf'
 faiss_path = "faiss_db"
 
-# 1. Cached Embeddings Initialization
 @st.cache_resource
 def get_embeddings(key):
     return GoogleGenerativeAIEmbeddings(
@@ -60,9 +58,9 @@ def get_embeddings(key):
     )
 embeddings = get_embeddings(google_api_key)
 
-# 2. Cached Vector Store Initialization (Fixed UnhashableParamError previously)
+# Fix for UnhashableParamError: Renaming embeddings to _embeddings
 @st.cache_resource(show_spinner=False)
-def get_vector_store(faiss_path, pdf_dir, _embeddings): # Use _embeddings for caching fix
+def get_vector_store(faiss_path, pdf_dir, _embeddings): 
     """
     Attempts to load the vector store from cache or create it from PDFs.
     Returns the vector store object or None on critical failure.
@@ -84,7 +82,6 @@ def get_vector_store(faiss_path, pdf_dir, _embeddings): # Use _embeddings for ca
     
     with st.spinner("📚 Creating a Database..."):
         try:
-            # Load documents
             for file in os.listdir(pdf_dir):
                 if file.endswith('.pdf'):
                     loader = PyPDFLoader(os.path.join(pdf_dir, file))
@@ -123,8 +120,7 @@ def get_vector_store(faiss_path, pdf_dir, _embeddings): # Use _embeddings for ca
 
             try:
                 if vector_store is None:
-                    # Use _embeddings
-                    vector_store = FAISS.from_texts(batch, _embeddings)
+                    vector_store = FAISS.from_texts(batch, _embeddings) # Use _embeddings
                 else:
                     vector_store.add_texts(batch)
 
@@ -132,14 +128,13 @@ def get_vector_store(faiss_path, pdf_dir, _embeddings): # Use _embeddings for ca
                     time.sleep(DELAY_SECONDS) 
 
             except Exception as e:
-                # Catch API/Quota errors and halt creation
                 if "429" in str(e) or "quota" in str(e).lower():
                     st.error("🚨 Quota Exceeded. Database creation halted.")
                 else:
                     st.error(f"Unexpected error during FAISS creation: {e}")
                 
                 status_placeholder.empty()
-                return None # Return None on critical failure
+                return None
         
         status_placeholder.empty()
 
@@ -154,12 +149,15 @@ def get_vector_store(faiss_path, pdf_dir, _embeddings): # Use _embeddings for ca
 # Initialization Logic: Calls the cached function
 if "vectors" not in st.session_state:
     with st.spinner("Initializing system..."):
-        st.session_state["vectors"] = get_vector_store(faiss_path, pdf_dir, embeddings) # Pass 'embeddings'
+        st.session_state["vectors"] = get_vector_store(faiss_path, pdf_dir, embeddings)
 
 # Display readiness status
 if st.session_state["vectors"] is not None:
     st.info("Vector database is ready to answer questions.")
-# else: (Not needed, as the chat logic handles the None case)
+else:
+    # Display a more informative error message when initialization fails
+    st.error("Vector database failed to load or create. Check the console and error messages above for file or API quota issues.")
+
 
 # -------------------------
 # Response Generation
@@ -187,7 +185,6 @@ Career Expert:"""
         template=DEFAULT_TEMPLATE
     )
 
-    # This line is where the AttributeError occurred, now protected by outer logic
     docs = st.session_state["vectors"].similarity_search(user_message)
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
@@ -229,7 +226,6 @@ def get_history(history_list):
 # Streamlit UI
 # -------------------------
 def get_text():
-    # Use st.form for robust input handling, as in the previous good version
     with st.sidebar.form(key='chat_form', clear_on_submit=True):
         input_text = st.text_input("You: ", "Hello, how are you?", key="input")
         submit_button = st.form_submit_button('Send')
@@ -245,8 +241,7 @@ if "generated" not in st.session_state:
 
 user_input = get_text()
 
-# 🔑 FIX: Guard the call to get_response to prevent AttributeError.
-# Only run chat logic if user_input exists AND the vector store is ready.
+# Guard the chat logic against a missing vector store (prevents AttributeError)
 if user_input and st.session_state.get("vectors") is not None:
     user_history = list(st.session_state["past"])
     bot_history = list(st.session_state["generated"])
@@ -260,14 +255,13 @@ if user_input and st.session_state.get("vectors") is not None:
 
     formatted_history = get_history(combined_history)
     
-    # Call the function only when st.session_state["vectors"] is safe to use
     output = get_response(formatted_history, user_input)
 
     st.session_state.past.append(user_input)
     st.session_state.generated.append(output)
 elif user_input:
-    # Handle the case where the user submits text but the database failed to load/create
-    st.error("Cannot send message. The vector database is not loaded. Please check for API quota issues or file errors.")
+    # Display the custom error message when the user submits a message, but vectors is None
+    st.error("Cannot send message. The vector database is not loaded. Please check the error messages above for file or API quota issues and rerun.")
 
 with st.expander("Chat History", expanded=True):
     if st.session_state["generated"]:
