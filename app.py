@@ -46,7 +46,6 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 
 # -------------------------
 # FAISS Database Caching and Creation
-# FIX: Use st.cache_resource for robust, one-time creation of vector store.
 # -------------------------
 pdf_dir = 'pdf'
 faiss_path = "faiss_db"
@@ -61,8 +60,9 @@ def get_embeddings(key):
 
 embeddings = get_embeddings(google_api_key)
 
+# 🔑 FIX: Renamed 'embeddings' to '_embeddings' to make it an unhashed argument.
 @st.cache_resource(show_spinner=False)
-def get_vector_store(faiss_path, pdf_dir, embeddings):
+def get_vector_store(faiss_path, pdf_dir, _embeddings):
     """
     Attempts to load the vector store from cache or create it from PDFs.
     Uses st.cache_resource to ensure it only runs once per session/change.
@@ -72,7 +72,8 @@ def get_vector_store(faiss_path, pdf_dir, embeddings):
     # 1. Try loading FAISS cache
     if os.path.exists(faiss_path):
         try:
-            vector_store = FAISS.load_local(faiss_path, embeddings, allow_dangerous_deserialization=True)
+            # Use _embeddings
+            vector_store = FAISS.load_local(faiss_path, _embeddings, allow_dangerous_deserialization=True)
             st.success("✅ Loaded existing database from cache.")
             return vector_store
         except Exception as e:
@@ -127,7 +128,8 @@ def get_vector_store(faiss_path, pdf_dir, embeddings):
             try:
                 if vector_store is None:
                     # Initializes the vector store with the first batch
-                    vector_store = FAISS.from_texts(batch, embeddings)
+                    # Use _embeddings
+                    vector_store = FAISS.from_texts(batch, _embeddings)
                 else:
                     # Adds subsequent batches
                     vector_store.add_texts(batch)
@@ -157,6 +159,7 @@ def get_vector_store(faiss_path, pdf_dir, embeddings):
         return None
 
 # *** FIX 4: Call the cached function and set session state only if needed ***
+# NOTE: The call here is correct because 'embeddings' is passed as the third argument.
 if "vectors" not in st.session_state:
     with st.spinner("Initializing system..."):
         st.session_state["vectors"] = get_vector_store(faiss_path, pdf_dir, embeddings)
@@ -196,7 +199,7 @@ Career Expert:"""
     )
 
     # This line is now protected by the check in the UI logic
-    docs = st.session_state["vectors"].similarity_search(user_message) 
+    docs = st.session_state["vectors"].similarity_search(user_message)  
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
