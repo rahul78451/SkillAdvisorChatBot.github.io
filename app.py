@@ -193,16 +193,19 @@ if user_input:
             combined_history.append({'role': 'assistant', 'content': bot_msg})
 
     formatted_history = get_history(combined_history)
-    try:
-    output = get_response(formatted_history, user_input)
-except Exception as e:
-    st.error(f"⚠️ Internal Error: {type(e).__name__} - {e}")
-    st.stop()
 
+    # ✅ Correct indentation for try/except block
+    try:
+        output = get_response(formatted_history, user_input)
+    except Exception as e:
+        st.error(f"⚠️ Internal Error: {type(e).__name__} - {e}")
+        st.stop()
 
     st.session_state.past.append(user_input)
     st.session_state.generated.append(output)
 
+# Chat History Section
+# -------------------------
 with st.expander("Chat History", expanded=True):
     if st.session_state["generated"]:
         for i in range(len(st.session_state["generated"])):
