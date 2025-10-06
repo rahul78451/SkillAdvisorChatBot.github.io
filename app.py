@@ -15,7 +15,9 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.utilities import SerpAPIWrapper
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 import google.generativeai as genai
 
 # -------------------------
@@ -54,10 +56,52 @@ pdf_dir = "pdf"
 faiss_path = "faiss_db"
 
 if "vectors" not in st.session_state:
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=google_api_key
-    )
+    # ✅ Use HuggingFace embeddings (no API quota or billing)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    if os.path.exists(faiss_path):
+        st.session_state["vectors"] = FAISS.load_local(
+            faiss_path, embeddings, allow_dangerous_deserialization=True
+        )
+        st.success("✅ Loaded existing FAISS database from cache.")
+    else:
+        st.info("📚 Creating new FAISS database from PDFs... Please wait.")
+
+        if not os.path.exists(pdf_dir):
+            st.error(f"❌ PDF folder '{pdf_dir}' not found! Please create it and add at least one PDF.")
+            st.stop()
+
+        pdf_files = [f for f in os.listdir(pdf_dir) if f.endswith(".pdf")]
+        if not pdf_files:
+            st.error("❌ No PDF files found in 'pdf/' folder. Please add at least one PDF file.")
+            st.stop()
+
+        temp_pdf_texts = []
+        for file in pdf_files:
+            loader = PyPDFLoader(os.path.join(pdf_dir, file))
+            docs = loader.load()
+            text = " ".join([d.page_content for d in docs])
+            temp_pdf_texts.append(text)
+
+        pdfDatabase = " ".join(temp_pdf_texts)
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_text(pdfDatabase)
+
+        if not chunks:
+            st.error("❌ PDF loaded but no text found. Check your PDF content.")
+            st.stop()
+
+        try:
+            vector_store = FAISS.from_texts(chunks, embeddings)
+            vector_store.save_local(faiss_path)
+            st.session_state["vectors"] = vector_store
+            st.success("✅ FAISS database created and cached successfully! (using local embeddings)")
+        except Exception as e:
+            st.error(f"⚠️ Error creating FAISS database: {e}")
+            st.stop()
+
+
+    
 
     if os.path.exists(faiss_path):
         st.session_state["vectors"] = FAISS.load_local(
