@@ -127,7 +127,13 @@ def get_response(history, user_message, temperature=0):
         template=DEFAULT_TEMPLATE
     )
 
-    docs = st.session_state["vectors"].similarity_search(user_message)
+   # ✅ Safety check before using vectors
+if "vectors" not in st.session_state or not st.session_state["vectors"]:
+    st.error("⚠️ Vector database not initialized yet. Please wait or restart the app.")
+    st.stop()
+
+docs = st.session_state["vectors"].similarity_search(user_message)
+
     text = " ".join([d.page_content for d in docs])  # FIX ✅
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
