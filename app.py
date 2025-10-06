@@ -118,21 +118,8 @@ if "vectors" not in st.session_state:
 # -------------------------
 def get_response(history, user_message, temperature=0):
     DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor.
-The Advisor guides the user regarding jobs, interests, and domain selection decisions.
-It follows the previous conversation.
-
-Relevant pieces of previous conversation:
-{context},
-
-Useful information from career guidance books:
-{text},
-
-Useful information from Web:
-{web_knowledge},
-
-Current conversation:
-Human: {input}
-Career Expert:"""
+    ...
+    """
 
     PROMPT = PromptTemplate(
         input_variables=['context','input','text','web_knowledge'],
@@ -140,6 +127,7 @@ Career Expert:"""
     )
 
     docs = st.session_state["vectors"].similarity_search(user_message)
+    text = " ".join([d.page_content for d in docs])  # FIX ✅
 
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
@@ -160,7 +148,7 @@ Career Expert:"""
         context=history,
         input=user_message,
         web_knowledge=web_knowledge,
-        text=docs
+        text=text   # FIX ✅
     )
     return response
 
