@@ -117,6 +117,9 @@ if "vectors" not in st.session_state:
 # -------------------------
 # Response Generation
 # -------------------------
+# -------------------------
+# Response Generation
+# -------------------------
 def get_response(history, user_message, temperature=0):
     DEFAULT_TEMPLATE = """The following is a friendly conversation between a human and a Career Advisor.
     ...
@@ -127,37 +130,42 @@ def get_response(history, user_message, temperature=0):
         template=DEFAULT_TEMPLATE
     )
 
-   # ✅ Safety check before using vectors
-if "vectors" not in st.session_state or not st.session_state["vectors"]:
-    st.error("⚠️ Vector database not initialized yet. Please wait or restart the app.")
-    st.stop()
+    # ✅ Safety check before using vectors
+    if "vectors" not in st.session_state or not st.session_state["vectors"]:
+        st.error("⚠️ Vector database not initialized yet. Please wait or restart the app.")
+        st.stop()
 
-docs = st.session_state["vectors"].similarity_search(user_message)
-
+    # ✅ Perform similarity search safely
+    docs = st.session_state["vectors"].similarity_search(user_message)
     text = " ".join([d.page_content for d in docs])  # FIX ✅
 
+    # ✅ Fetch web knowledge
     search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
     web_knowledge = search.run(user_message)
 
+    # ✅ Initialize Gemini model
     gemini_model = ChatGoogleGenerativeAI(
         model="gemini-1.5-pro",
         temperature=temperature,
         google_api_key=google_api_key
     )
 
+    # ✅ Build LangChain
     conversation_with_summary = LLMChain(
         llm=gemini_model,
         prompt=PROMPT,
         verbose=False
     )
 
+    # ✅ Generate final response
     response = conversation_with_summary.predict(
         context=history,
         input=user_message,
         web_knowledge=web_knowledge,
-        text=text   # FIX ✅
+        text=text
     )
     return response
+
 
 # -------------------------
 # Conversation History
