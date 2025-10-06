@@ -47,7 +47,7 @@ st.title(f"Career Advisor Chatbot {emoji.emojize(':robot:')}")
 # -------------------------
 # PDF Loading + FAISS Caching
 # -------------------------
-pdf_dir = os.path.join(os.path.dirname(__file__), "pdf")
+pdf_dir = 'pdf'
 
 faiss_path = "faiss_db"
 
