@@ -81,9 +81,6 @@ This will run all the unit tests and integration tests for the project.
 ----------------
 Unfortunately, this project does not have a graphical user interface. However, you can interact with the conversational interface using the command-line interface.
 
-[Placeholder Screenshot 1]
-[Placeholder Screenshot 2]
-[Placeholder Screenshot 3]
 
 📦 API Reference
 ------------------
@@ -91,7 +88,7 @@ The project uses the LangChain library to interact with the Google Generative AI
 
 👤 Author
 ----------
-The Generative AI Assistant was created by [Your Name](https://github.com/your-username).
+The Generative AI Assistant was created by [Rahul Gupta](https://github.com/rahul78451/).
 
 📝 License
 ----------
